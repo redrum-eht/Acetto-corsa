@@ -1,4 +1,4 @@
-import http
+import http.client
 import mmap
 import ctypes
 import time
@@ -70,18 +70,18 @@ def display_progress(user_data, physics):
         last_ms = parse_time(last)
         best_ms = parse_time(best) if best and best != "--:--.---" else float("inf")
         # On determine si last > best, dans ce cas ca veut dire qu'il y a eu penalité donc data_user['penalty'] = True
-        if last_ms > best_ms:
+        if last_ms > best_ms or last_ms != "--:--.---" and best_ms == float("inf"):
             print("Pénalité appliquée !")
             user_data['bestWithPenalty'] = last
             user_data['penalty'] = True
-
 
     print(f"Pilote  : {user_data['pilote']  or 'N/A'}")
     print(f"Circuit : {user_data['circuit'] or 'N/A'}")
     print(f"Voiture : {user_data['voiture'] or 'N/A'}")
     print(f"Meilleur tour : {user_data['best'] or '--:--.---'}")
+    print(f"last brut : {graphics.lastTime}")
     print("─" * 35)
-    print(f"Vitesse : {physics.speedKmh:.1f} km/h")
+    print(f"Vitesse : {physics.speedKmh} km/h")
     print(f"RPM     : {physics.rpms}")
     print(f"Rapport : {physics.gear - 1 }")
     print(f"Gaz     : {physics.gas * 100:.0f}%")
@@ -90,12 +90,10 @@ def display_progress(user_data, physics):
 
 def send_data(user_data, physics):
     try:
-        http.client.HTTPConnection("localhost", 5000, timeout=5).request(
-            "POST",
-            "/update",
-            body=str(user_data).encode("utf-8"),
-            headers={"Content-Type": "application/json"}
-        )
+        host = "factomania.ddns.net"
+        conn = http.client.HTTPConnection(host, 5000, timeout=5)
+        conn.request("post", "/update", body=str(user_data).encode("utf-8"), headers={"Content-Type": "application/json"})
+        conn.close()
     except Exception as e:
         print(f"Erreur lors de l'envoi des données : {e}")
         print("Données locales :")
@@ -183,8 +181,14 @@ if __name__ == "__main__":
             "penalty": False,
         }
         
-        while graphics.status == 2 and not quit_requested:
-            user_data['pilote'] = f"{static.playerName} {static.playerSurname}".strip()
+        while graphics.status != 0 and not quit_requested:
+            # pause script when game is paused (status == 1)
+            if graphics.status == 1:
+                print("\nSession en pause...")
+                while graphics.status == 1 and not quit_requested:
+                    time.sleep(1)
+                print("\nSession reprise !")
+            user_data['pilote'] = f"{static.playerName}".strip()
             user_data['circuit'] = static.track.strip()
             user_data['voiture'] = static.carModel.strip()
            
