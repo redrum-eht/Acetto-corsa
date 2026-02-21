@@ -1,6 +1,7 @@
 import http.client
 import mmap
 import ctypes
+from pathlib import Path
 import time
 import os
 import json
@@ -88,22 +89,29 @@ def display_progress(user_data, physics):
     print("=" * 35)
     print("[Q] pour quitter")
 
-def send_data(user_data, physics):
+def send_data(user_data, url):
     try:
-        host = "factomania.ddns.net"
-        conn = http.client.HTTPConnection(host, 5000, timeout=5)
+        if url is None:
+            print('Enregistement des données en local')
+            raise Exception("URL du serveur non configurée.")
+        host = url
+        conn = http.client.HTTPConnection(host, 1000, timeout=5)
         conn.request("post", "/update", body=str(user_data).encode("utf-8"), headers={"Content-Type": "application/json"})
-        conn.close()
+        status = conn.getresponse().status
+        if status == 200:
+            print("Données envoyées avec succès !")
+        else:
+            raise Exception(f"Erreur HTTP {status}")
     except Exception as e:
         print(f"Erreur lors de l'envoi des données : {e}")
-        print("Données locales :")
-        print(user_data)
         # auvegarde dans le fichier du script (data_csv[random_hash].txt) pour inserer a la main dans la base de données plus tard
         # on verifie si ./times existe, sinon on le crée
         # on creer ensuite le fichier data_csv[random_hash].txt avec les données user_data et physics
         if not os.path.exists("./times"):
             os.makedirs("./times")
         filename = f"./times/data_{int(time.time())}.json"
+        print(f"Données enregistrées en locale : {filename}")
+        print(user_data)
         with open(filename, "w") as f:
             json.dump(user_data, f, ensure_ascii=False, indent=4)
 
@@ -135,7 +143,13 @@ quit_requested = False
 
 if __name__ == "__main__":
     INTERVAL = 0.25
-
+    config_path = Path(__file__).resolve().parent / "conf.json"
+    with config_path.open("r", encoding="utf-8") as f:
+        conf = json.load(f)
+    url = conf.get("server_url", None)
+    if conf.get("update_interval") is not None:
+        INTERVAL = conf["update_interval"]
+        print(f"Intervalle de mise à jour défini à {INTERVAL} secondes.")
     
     keyboard.on_press(on_key)
     
@@ -196,7 +210,7 @@ if __name__ == "__main__":
             time.sleep(INTERVAL)
         
         print("\nSession terminée, envoi des données...")
-        send_data(user_data, physics)
+        send_data(user_data, physics, url)
 
         close_mmaps(maps)
         maps = None
@@ -208,13 +222,3 @@ if __name__ == "__main__":
             print("\nSession terminée. Retour en attente...\n")
             time.sleep(3)
 print("Arrêt du programme.")
-    
-
-
-        
-
-
-    
-
-
-
