@@ -70,11 +70,10 @@ def display_progress(user_data, physics):
     if last and last != "--:--.---":
         last_ms = parse_time(last)
         best_ms = parse_time(best) if best and best != "--:--.---" else float("inf")
-        # On determine si last > best, dans ce cas ca veut dire qu'il y a eu penalité donc data_user['penalty'] = True
+        # On determine si last > best, dans ce cas ca veut dire qu'il y a eu penalité
         if last_ms > best_ms or last_ms != "--:--.---" and best_ms == float("inf"):
             print("Pénalité appliquée !")
             user_data['bestWithPenalty'] = last
-            user_data['penalty'] = True
 
     print(f"Pilote  : {user_data['pilote']  or 'N/A'}")
     print(f"Circuit : {user_data['circuit'] or 'N/A'}")
@@ -192,7 +191,6 @@ if __name__ == "__main__":
             "voiture": "",
             "best": None,
             "bestWithPenalty": None,
-            "penalty": False,
         }
         
         while graphics.status != 0 and not quit_requested:
