@@ -7,6 +7,7 @@ import os
 import json
 
 import keyboard
+import ssl
 
 # ==============================
 # STRUCTURES
@@ -88,19 +89,107 @@ def display_progress(user_data, physics):
     print("=" * 35)
     print("[Q] pour quitter")
 
-def send_data(user_data, url):
+def send_data(user_data, config):
     try:
-        if url is None:
-            print('Enregistement des données en local')
-            raise Exception("URL du serveur non configurée.")
-        host = url
-        conn = http.client.HTTPConnection(host, 1000, timeout=5)
-        conn.request("post", "/update", body=str(user_data).encode("utf-8"), headers={"Content-Type": "application/json"})
-        status = conn.getresponse().status
-        if status == 200:
-            print("Données envoyées avec succès !")
-        else:
-            raise Exception(f"Erreur HTTP {status}")
+        server_url = config.get("server_url")
+        username = config.get("username")
+        password = config.get("password")
+
+        # Prepare payload
+        payload = {
+            "pilote": user_data.get('pilote', ''),
+            "circuit": user_data.get('circuit', ''),
+            "voiture": user_data.get('voiture', ''),
+            "best": user_data.get('best'),
+            "bestWithPenalty": user_data.get('bestWithPenalty'),
+        }
+
+        token = None
+        # If auth configured, do a login to retrieve token
+        auth_cfg = config.get("auth")
+        if auth_cfg:
+            auth_host = auth_cfg.get("host")
+            auth_port = auth_cfg.get("port") or (443 if auth_cfg.get("use_ssl") else 80)
+            auth_path = auth_cfg.get("path") or "/"
+            auth_use_ssl = bool(auth_cfg.get("use_ssl"))
+
+            auth_body = json.dumps({"username": username, "password": password}, ensure_ascii=False).encode("utf-8")
+            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+            context = ssl.create_default_context() if auth_use_ssl else None
+            if context:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+
+            conn = None
+            try:
+                if auth_use_ssl:
+                    conn = http.client.HTTPSConnection(auth_host, port=auth_port, timeout=5, context=context)
+                else:
+                    conn = http.client.HTTPConnection(auth_host, port=auth_port, timeout=5)
+                conn.request("POST", auth_path, body=auth_body, headers=headers)
+                resp = conn.getresponse()
+                resp_text = resp.read().decode(errors="ignore")
+                conn.close()
+                if resp.status == 200:
+                    try:
+                        j = json.loads(resp_text)
+                        token = j.get("token") or j.get("access_token")
+                    except Exception:
+                        token = None
+                else:
+                    print(f"Auth failed HTTP {resp.status}: {resp_text}")
+            except Exception as e:
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                print(f"Erreur lors de l'authentification: {e}")
+
+        # Send payload to push endpoint (use explicit push config to avoid parsing)
+        push_cfg = config.get("push")
+        if not push_cfg:
+            raise Exception("Configuration 'push' manquante. Ajouter push.host/push.port/push.path dans conf.json")
+
+        push_host = push_cfg.get("host")
+        push_port = push_cfg.get("port") or (443 if push_cfg.get("use_ssl") else 80)
+        push_path = push_cfg.get("path") or "/"
+        push_use_ssl = bool(push_cfg.get("use_ssl"))
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        context = ssl.create_default_context() if push_use_ssl else None
+        if context:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+
+        conn = None
+        try:
+            if push_use_ssl:
+                conn = http.client.HTTPSConnection(push_host, port=push_port, timeout=5, context=context)
+            else:
+                conn = http.client.HTTPConnection(push_host, port=push_port, timeout=5)
+            conn.request("POST", push_path, body=body, headers=headers)
+            resp = conn.getresponse()
+            resp_text = resp.read().decode(errors="ignore")
+            conn.close()
+            if resp.status == 200:
+                print("Données envoyées avec succès !")
+                if resp_text:
+                    print(f"Réponse serveur: {resp_text}")
+            else:
+                raise Exception(f"Erreur HTTP {resp.status}: {resp_text}")
+        except Exception as e:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            raise
     except Exception as e:
         print(f"Erreur lors de l'envoi des données : {e}")
         # auvegarde dans le fichier du script (data_csv[random_hash].txt) pour inserer a la main dans la base de données plus tard
@@ -143,9 +232,14 @@ quit_requested = False
 if __name__ == "__main__":
     INTERVAL = 0.25
     config_path = Path(__file__).resolve().parent / "conf.json"
+
+    if not config_path.exists():
+        print(f"❌ Erreur: {config_path} non trouvé!")
+        exit(1)
+
     with config_path.open("r", encoding="utf-8") as f:
         conf = json.load(f)
-    url = conf.get("server_url", None)
+
     if conf.get("update_interval") is not None:
         INTERVAL = conf["update_interval"]
         print(f"Intervalle de mise à jour défini à {INTERVAL} secondes.")
@@ -208,7 +302,7 @@ if __name__ == "__main__":
             time.sleep(INTERVAL)
         
         print("\nSession terminée, envoi des données...")
-        send_data(user_data, physics, url)
+        send_data(user_data, conf)
 
         close_mmaps(maps)
         maps = None

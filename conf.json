@@ -1,5 +1,18 @@
 {
-    "server_url": null,
     "update_interval": 0.2,
-    "debug": false
+    "debug": false,
+    "username": "test",
+    "password": "testtesttest",
+    "auth": {
+        "host": "factomania.ddns.net",
+        "port": 8443,
+        "path": "/api/login",
+        "use_ssl": true
+    },
+    "push": {
+        "host": "factomania.ddns.net",
+        "port": 8443,
+        "path": "/api/course",
+        "use_ssl": true
+    }
 }
