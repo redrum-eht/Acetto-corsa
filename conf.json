@@ -1,9 +1,9 @@
 {
     "update_interval": 0.2,
-    "api_key": "qIHs0VP1CYt2vQO7q9ebeLtKpiQEjMH5RexqLUa",
-    "username":"Admin",
+    "api_key": "",
+    "username":"",
     "push": {
-        "host": "factomania.ddns.net",
+        "host": "",
         "port": 8443,
         "path": "/api/course",
         "use_ssl": true
