@@ -1,14 +1,7 @@
 {
     "update_interval": 0.2,
-    "debug": false,
-    "username": "test",
-    "password": "testtesttest",
-    "auth": {
-        "host": "factomania.ddns.net",
-        "port": 8443,
-        "path": "/api/login",
-        "use_ssl": true
-    },
+    "api_key": "qIHs0VP1CYt2vQO7q9ebeLtKpiQEjMH5RexqLUa",
+    "username":"Admin",
     "push": {
         "host": "factomania.ddns.net",
         "port": 8443,
